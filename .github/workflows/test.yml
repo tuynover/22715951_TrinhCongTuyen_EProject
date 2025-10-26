@@ -16,7 +16,7 @@ jobs:
         ports:
           - 27017:27017
         options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ping:1})'" 
+          --health-cmd "mongosh --eval 'db.runCommand({ping:1})'"
           --health-interval 10s 
           --health-timeout 5s 
           --health-retries 5
@@ -41,6 +41,17 @@ jobs:
         with:
           node-version: 20
 
+      - name: Create .env files for all services
+        run: |
+          echo "MONGODB_AUTH_URI=mongodb://mongo:27017/auth_db" > auth/.env
+          echo "JWT_SECRET=idontknow" >> auth/.env
+          
+          echo "MONGODB_PRODUCT_URI=mongodb://mongo:27017/product_db" > product/.env
+          echo "RABBITMQ_URL=amqp://rabbitmq:5672" >> product/.env
+
+          echo "MONGODB_ORDER_URI=mongodb://mongo:27017/order_db" > order/.env
+          echo "RABBITMQ_URL=amqp://rabbitmq:5672" >> order/.env
+
       - name: Install dependencies
         run: |
           cd auth && npm ci && cd ..
@@ -49,17 +60,10 @@ jobs:
           cd api-gateway && npm ci && cd ..
 
       - name: Run Docker Compose
-        run: |
-          docker compose up -d --build
-        env:
-          MONGODB_AUTH_URI: mongodb://mongo:27017/auth_db
-          MONGODB_PRODUCT_URI: mongodb://mongo:27017/product_db
-          MONGODB_ORDER_URI: mongodb://mongo:27017/order_db
-          RABBITMQ_URL: amqp://rabbitmq:5672
-          JWT_SECRET: idontknow
+        run: docker compose up -d --build
 
       - name: Wait for services to start
-        run: sleep 20
+        run: sleep 25
 
       - name: Run Auth tests
         run: |
