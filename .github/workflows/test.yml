@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      mongodb:
+      mongo:
         image: mongo:6
         ports:
           - 27017:27017
@@ -20,6 +20,14 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+      # FIX: Thêm dịch vụ RabbitMQ
+      rabbitmq:
+        image: rabbitmq:3.8-management-alpine # Dùng image có Management Plugin để dễ kiểm tra
+        ports:
+          - 5672:5672 # Cổng kết nối AMQP
+          - 15672:15672 # Cổng Management UI
+        options: --hostname rabbitmq # Đặt hostname để code có thể tìm thấy tên "rabbitmq"
 
     steps:
       - name: Checkout code
@@ -36,20 +44,25 @@ jobs:
           for d in api-gateway auth product order; do
             if [ -f "$d/package.json" ]; then
               echo "Installing deps for $d"
-              (cd $d && npm ci || npm install)
+              # Sử dụng 'npm ci' cho CI/CD để đảm bảo phiên bản chính xác
+              (cd $d && npm ci)
             fi
           done
 
       - name: Run tests for services that have tests
         env:
-          MONGODB_AUTH_URI: mongodb://127.0.0.1:27017/auth_db
+          # Cấu hình MONGODB sử dụng tên service (tốt hơn 127.0.0.1)
+          MONGODB_AUTH_URI: mongodb://mongodb:27017/auth_db
+          # Cấu hình RabbitMQ để code của bạn kết nối đến tên service
+          RABBITMQ_URI: amqp://rabbitmq
           NODE_ENV: test
-          JWT_SECRET: test_secret
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           set -e
           for d in auth product; do
             if [ -f "$d/package.json" ]; then
               echo "Running tests for $d"
+              # Thêm biến môi trường vào lệnh test để các services có thể đọc URI mới
               (cd $d && npm test --silent)
             fi
           done
