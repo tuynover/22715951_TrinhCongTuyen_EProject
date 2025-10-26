@@ -27,18 +27,18 @@ describe("User Authentication", () => {
       const res = await chai
         .request(app.app)
         .post("/register")
-        .send({ username: "admin", password: "123" });
+        .send({ username: "testuser", password: "password" });
 
       expect(res).to.have.status(200);
       expect(res.body).to.have.property("_id");
-      expect(res.body).to.have.property("username", "admin");
+      expect(res.body).to.have.property("username", "testuser");
     });
 
     it("should return an error if the username is already taken", async () => {
       const res = await chai
         .request(app.app)
         .post("/register")
-        .send({ username: "admin", password: "123" });
+        .send({ username: "testuser", password: "password" });
 
       expect(res).to.have.status(400);
       expect(res.body).to.have.property("message", "Username already taken");
@@ -50,7 +50,7 @@ describe("User Authentication", () => {
       const res = await chai
         .request(app.app)
         .post("/login")
-        .send({ username: "admin", password: "123" });
+        .send({ username: "testuser", password: "password" });
 
       expect(res).to.have.status(200);
       expect(res.body).to.have.property("token");
@@ -70,7 +70,7 @@ describe("User Authentication", () => {
       const res = await chai
         .request(app.app)
         .post("/login")
-        .send({ username: "admin", password: "wrongpassword" });
+        .send({ username: "testuser", password: "wrongpassword" });
 
       expect(res).to.have.status(400);
       expect(res.body).to.have.property("message", "Invalid username or password");
