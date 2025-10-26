@@ -1,22 +1,46 @@
 const chai = require("chai");
 const chaiHttp = require("chai-http");
-const jwt = require("jsonwebtoken"); // 👈 thêm dòng này
+const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose"); // Cần thiết để kiểm tra trạng thái DB
 const App = require("../app");
+const Product = require("../models/product"); // Cần thiết cho việc dọn dẹp
 const expect = chai.expect;
 require("dotenv").config();
 
 chai.use(chaiHttp);
 
 describe("Products", () => {
-  let app;
+  let appInstance;
+  let server; // Lưu trữ instance HTTP Server đang chạy
   let authToken;
 
   before(async () => {
-    app = new App();
-    await Promise.all([app.connectDB(), app.setupMessageBroker()]);
+    appInstance = new App();
+    
+    // 1. CHẠY TUẦN TỰ: Đảm bảo DB được kết nối trước Broker
+    // Nếu app.connectDB() gọi mongoose.connect(), nó sẽ bắt đầu quá trình.
+    await appInstance.connectDB(); 
+    
+    // 2. CHỜ DB SẴN SÀNG: Sử dụng Promise để chờ trạng thái 'open' một cách an toàn.
+    // Điều này khắc phục lỗi "buffering timed out".
+    if (mongoose.connection.readyState !== 1) { // 1 = Connected
+        console.log("Waiting for Mongoose connection to open...");
+        await new Promise(resolve => {
+            // Chờ sự kiện kết nối mở (chỉ chạy một lần)
+            mongoose.connection.once('open', resolve); 
+        });
+        console.log("Mongoose connection ready.");
+    }
 
-    // ⚙️ Nếu đang chạy local → gọi thật Auth service
+    // Sau khi DB sẵn sàng, mới setup Message Broker (để tránh lỗi phụ thuộc)
+    await appInstance.setupMessageBroker();
+    
+    // 3. Dọn dẹp dữ liệu cũ (Bây giờ đã an toàn để chạy query DB)
+    await Product.deleteMany({}); 
+
+    // ⚙️ Logic tạo Token (CI/CD)
     if (!process.env.CI && !process.env.GITHUB_ACTIONS) {
+      // Logic gọi thật Auth service... (Giữ nguyên)
       try {
         const authRes = await chai
           .request("http://localhost:3000")
@@ -25,9 +49,7 @@ describe("Products", () => {
             username: process.env.LOGIN_TEST_USER,
             password: process.env.LOGIN_TEST_PASSWORD,
           });
-
         authToken = authRes.body.token;
-        console.log("🔑 Authenticated token:", authToken);
       } catch (err) {
         console.error("⚠️ Auth service not available, using mock token");
       }
@@ -40,13 +62,25 @@ describe("Products", () => {
         { expiresIn: "1h" }
       );
     }
-
-    app.start();
+    
+    // 4. Khởi động server và chờ nó lắng nghe
+    server = appInstance.start(); 
+    await new Promise(resolve => server.on('listening', resolve));
   });
 
   after(async () => {
-    await app.disconnectDB();
-    app.stop();
+    // 1. Dọn dẹp dữ liệu sau khi hoàn tất test suite
+    if (mongoose.connection.readyState === 1) {
+        await Product.deleteMany({}); 
+    }
+    
+    // 2. Đóng server an toàn (khắc phục lỗi Timeout)
+    if (server) {
+      await new Promise(resolve => server.close(resolve));
+    }
+    
+    // 3. Ngắt kết nối DB
+    await appInstance.disconnectDB();
   });
 
   describe("POST /products", () => {
@@ -58,7 +92,7 @@ describe("Products", () => {
       };
 
       const res = await chai
-        .request(app.app)
+        .request(server) // SỬ DỤNG SERVER INSTANCE ĐANG CHẠY
         .post("/")
         .set("Authorization", `Bearer ${authToken}`)
         .send(product);
@@ -77,7 +111,7 @@ describe("Products", () => {
       };
 
       const res = await chai
-        .request(app.app)
+        .request(server) // SỬ DỤNG SERVER INSTANCE ĐANG CHẠY
         .post("/")
         .set("Authorization", `Bearer ${authToken}`)
         .send(product);
