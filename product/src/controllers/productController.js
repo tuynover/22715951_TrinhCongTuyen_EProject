@@ -31,7 +31,13 @@ class ProductController {
 
       res.status(201).json(product);
     } catch (error) {
-      console.error(error);
+      console.error("Lỗi khi tạo sản phẩm:", error);
+      if (error.code === 11000) {
+        return res.status(409).json({ 
+          message: "Xung đột: Sản phẩm đã tồn tại.", 
+          details: error.message 
+        });
+      }
       res.status(500).json({ message: "Server error" });
     }
   }
