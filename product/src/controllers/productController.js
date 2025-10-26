@@ -27,7 +27,7 @@ class ProductController {
         return res.status(400).json({ message: validationError.message });
       }
 
-      await product.save({ timeout: 30000 });
+      await product.create({ timeout: 30000 });
 
       res.status(201).json(product);
     } catch (error) {
