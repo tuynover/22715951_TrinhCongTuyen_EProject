@@ -10,28 +10,6 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
-    services:
-      mongo:
-        image: mongo:6
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ping:1})'"
-          --health-interval 10s 
-          --health-timeout 5s 
-          --health-retries 5
-
-      rabbitmq:
-        image: rabbitmq:3.8-management-alpine
-        ports:
-          - 5672:5672
-          - 15672:15672
-        options: >-
-          --health-cmd "rabbitmqctl status"
-          --health-interval 10s 
-          --health-timeout 5s 
-          --health-retries 5
-
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -40,6 +18,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Clean up Docker environment (avoid port conflicts)
+        run: |
+          docker ps -aq | xargs -r docker stop
+          docker ps -aq | xargs -r docker rm
+          docker network prune -f
+          docker volume prune -f
 
       - name: Create .env files for all services
         run: |
@@ -59,11 +44,11 @@ jobs:
           cd order && npm ci && cd ..
           cd api-gateway && npm ci && cd ..
 
-      - name: Run Docker Compose
+      - name: Start Docker Compose (build & run)
         run: docker compose up -d --build
 
       - name: Wait for services to start
-        run: sleep 25
+        run: sleep 30
 
       - name: Run Auth tests
         run: |
@@ -80,6 +65,6 @@ jobs:
           cd order
           npm test
 
-      - name: Stop Docker Compose
+      - name: Stop Docker Compose (cleanup)
         if: always()
-        run: docker compose down --remove-orphans
+        run: docker compose down --remove-orphans -v
