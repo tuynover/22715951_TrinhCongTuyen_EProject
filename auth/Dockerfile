@@ -13,8 +13,7 @@ RUN npm install
 
 # Copy the rest of the application files to the container
 COPY . .
-
 EXPOSE 3000
 
 # Set the command to start the app
-CMD [ "node", "index.js" ]
+CMD [ "npm", "start" ]
