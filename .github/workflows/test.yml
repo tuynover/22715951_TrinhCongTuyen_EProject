@@ -1,68 +1,37 @@
-name: CI Test
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
+name: CI
+on: [push, pull_request]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v3.2.0
+    - name: Create .env file
+      run: |
+        echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_PRODUCT_URI }}" >> auth/.env
+        echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
+        echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
+        echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" >> product/.env
+        echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
+        echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      # Tạo file .env cho từng service
-      - name: Create .env files
-        run: |
-          echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" >> auth/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
-
-          echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" >> product/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
-
-          echo "MONGODB_ORDER_URI=${{ secrets.MONGODB_ORDER_URI }}" >> order/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
-          echo "RABBITMQ_URL=${{ secrets.RABBITMQ_URL }}" >> order/.env
-
-          echo "GATEWAY_PORT=3003" >> api-gateway/.env
-          echo "AUTH_SERVICE_URL=http://localhost:3000" >> api-gateway/.env
-          echo "PRODUCT_SERVICE_URL=http://localhost:3001" >> api-gateway/.env
-          echo "ORDER_SERVICE_URL=http://localhost:3002" >> api-gateway/.env
-
-      - name: Install dependencies
-        run: |
-          cd auth && npm ci
-          cd ../product && npm ci
-          cd ../order && npm ci
-          cd ../api-gateway && npm ci
-          cd ..
-
-      - name: Start all services
-        run: |
-          cd auth && npm start &
-          cd ../product && npm start &
-          cd ../order && npm start &
-          cd ../api-gateway && npm start &
-          sleep 10
-
-      - name: Run tests (auth)
-        run: |
-          cd auth
-          npm test
-
-      - name: Run tests (product)
-        run: |
-          cd product
-          npm test
-
-      - name: Run tests (order)
-        run: |
-          cd order
-          npm test
+    - name: Install dependencies
+      run: |
+        cd auth
+        npm ci
+        cd ..
+        cd product
+        npm ci
+        cd ..
+        npm ci
+    - name: Run tests for auth
+      run : |
+        cd auth
+        npm test
+    - name: Run tests for product
+      run: |
+        cd auth &&
+        npm start &
+        cd product
+        npm test
