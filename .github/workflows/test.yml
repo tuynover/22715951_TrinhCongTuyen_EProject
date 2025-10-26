@@ -42,7 +42,8 @@ jobs:
 
       - name: Run tests for services that have tests
         env:
-          MONGODB_AUTH_URI: mongodb://mongo:27017/auth_db
+          MONGODB_AUTH_URI: mongodb://127.0.0.1:27017/auth_db
+          MONGODB_PRODUCT_URI: mongodb://127.0.0.1:27017/product_db
           NODE_ENV: test
           JWT_SECRET: idontknow
         run: |
