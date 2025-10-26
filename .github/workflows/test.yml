@@ -1,59 +1,68 @@
-name: CI Pipeline
+name: CI Test
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Tạo file .env cho các service
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Tạo file .env cho từng service
+      - name: Create .env files
         run: |
-          mkdir -p auth order product api-gateway
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
           echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_AUTH_URI }}" >> auth/.env
-          echo "PORT=3000" >> auth/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
 
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
-          echo "MONGODB_ORDER_URI=${{ secrets.MONGODB_ORDER_URI }}" >> order/.env
-          echo "PORT=3002" >> order/.env
-
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
           echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" >> product/.env
-          echo "PORT=3001" >> product/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
+
+          echo "MONGODB_ORDER_URI=${{ secrets.MONGODB_ORDER_URI }}" >> order/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> order/.env
+          echo "RABBITMQ_URL=${{ secrets.RABBITMQ_URL }}" >> order/.env
 
           echo "GATEWAY_PORT=3003" >> api-gateway/.env
-          echo "AUTH_SERVICE=http://localhost:3000" >> api-gateway/.env
-          echo "ORDER_SERVICE=http://localhost:3002" >> api-gateway/.env
-          echo "PRODUCT_SERVICE=http://localhost:3001" >> api-gateway/.env
-          echo "PORT=3003" >> api-gateway/.env
+          echo "AUTH_SERVICE_URL=http://localhost:3000" >> api-gateway/.env
+          echo "PRODUCT_SERVICE_URL=http://localhost:3001" >> api-gateway/.env
+          echo "ORDER_SERVICE_URL=http://localhost:3002" >> api-gateway/.env
 
-      - name: Cài dependencies cho tất cả service
+      - name: Install dependencies
         run: |
-          npm ci
-          cd auth && npm ci && cd ..
-          cd order && npm ci && cd ..
-          cd product && npm ci && cd ..
-          cd api-gateway && npm ci && cd ..
+          cd auth && npm ci
+          cd ../product && npm ci
+          cd ../order && npm ci
+          cd ../api-gateway && npm ci
+          cd ..
 
-      - name: Chạy test cho auth
-        run: npm test
-        working-directory: ./auth
-
-      - name: Chạy test cho order
-        run: npm test
-        working-directory: ./order
-
-      - name: Chạy test cho product
-        run: npm test
-        working-directory: ./product
-
-      - name: Kiểm tra api-gateway
+      - name: Start all services
         run: |
-          cd api-gateway
-          npm start &
+          cd auth && npm start &
+          cd ../product && npm start &
+          cd ../order && npm start &
+          cd ../api-gateway && npm start &
           sleep 10
-          curl -I http://localhost:3003 || exit 1
+
+      - name: Run tests (auth)
+        run: |
+          cd auth
+          npm test
+
+      - name: Run tests (product)
+        run: |
+          cd product
+          npm test
+
+      - name: Run tests (order)
+        run: |
+          cd order
+          npm test
