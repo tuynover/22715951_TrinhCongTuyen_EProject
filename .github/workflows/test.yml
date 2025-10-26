@@ -1,57 +1,81 @@
-deploy:
-  name: Deploy on Localhost (Windows Runner)
-  needs: build-and-push
-  runs-on: self-hosted
-  env:
-    DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-    IMAGE_TAG: latest
-  steps:
-    - name: Check Docker environment
-      shell: cmd
-      run: |
-        docker --version
-        docker compose version
+name: CI/CD for EProject Microservices
 
-    - name: Docker login
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
-    - name: Clone latest code (for compose file)
-      shell: cmd
-      run: |
-        if exist "EProject" rd /s /q "EProject"
-        git clone https://github.com/${{ github.repository }}.git EProject
-        cd EProject
-        git checkout main
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
 
-    - name: Stop and remove old containers
-      shell: cmd
-      run: |
-        cd EProject
-        docker compose down --remove-orphans || exit /b 0
+    services:
+      mongo:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ping:1})'" 
+          --health-interval 10s 
+          --health-timeout 5s 
+          --health-retries 5
 
-    - name: Pull updated images from Docker Hub
-      shell: cmd
-      run: |
-        docker pull %DOCKERHUB_USERNAME%/api-gateway:%IMAGE_TAG%
-        docker pull %DOCKERHUB_USERNAME%/auth:%IMAGE_TAG%
-        docker pull %DOCKERHUB_USERNAME%/product:%IMAGE_TAG%
-        docker pull %DOCKERHUB_USERNAME%/order:%IMAGE_TAG%
+      rabbitmq:
+        image: rabbitmq:3.8-management-alpine
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmqctl status"
+          --health-interval 10s 
+          --health-timeout 5s 
+          --health-retries 5
 
-    - name: Create .env for docker-compose
-      shell: cmd
-      run: |
-        cd EProject
-        > .env (
-          echo DOCKERHUB_USERNAME=%DOCKERHUB_USERNAME%
-          echo IMAGE_TAG=%IMAGE_TAG%
-        )
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
 
-    - name: Deploy new containers
-      shell: cmd
-      run: |
-        cd EProject
-        docker compose up -d --remove-orphans --force-recreate
-        docker ps
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          cd auth && npm ci && cd ..
+          cd product && npm ci && cd ..
+          cd order && npm ci && cd ..
+          cd api-gateway && npm ci && cd ..
+
+      - name: Run Docker Compose
+        run: |
+          docker compose up -d --build
+        env:
+          MONGODB_AUTH_URI: mongodb://mongo:27017/auth_db
+          MONGODB_PRODUCT_URI: mongodb://mongo:27017/product_db
+          MONGODB_ORDER_URI: mongodb://mongo:27017/order_db
+          RABBITMQ_URL: amqp://rabbitmq:5672
+          JWT_SECRET: idontknow
+
+      - name: Wait for services to start
+        run: sleep 20
+
+      - name: Run Auth tests
+        run: |
+          cd auth
+          npm test
+
+      - name: Run Product tests
+        run: |
+          cd product
+          npm test
+
+      - name: Run Order tests
+        run: |
+          cd order
+          npm test
+
+      - name: Stop Docker Compose
+        if: always()
+        run: docker compose down --remove-orphans
