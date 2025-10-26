@@ -59,7 +59,7 @@ describe("Products", () => {
 
       const res = await chai
         .request(app.app)
-        .post("/api/products")
+        .post("/")
         .set("Authorization", `Bearer ${authToken}`)
         .send(product);
 
@@ -78,7 +78,7 @@ describe("Products", () => {
 
       const res = await chai
         .request(app.app)
-        .post("/api/products")
+        .post("/")
         .set("Authorization", `Bearer ${authToken}`)
         .send(product);
 
