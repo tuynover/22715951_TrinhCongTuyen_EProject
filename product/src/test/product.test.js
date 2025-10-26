@@ -6,19 +6,20 @@ require("dotenv").config();
 
 chai.use(chaiHttp);
 
-describe("Products (via API Gateway)", () => {
+describe("Products", () => {
   let app;
   let authToken;
 
   before(async () => {
+    // 1️⃣ Khởi tạo app và kết nối DB + RabbitMQ
     app = new App();
     await Promise.all([app.connectDB(), app.setupMessageBroker()]);
     app.start();
 
-    // ✅ Đăng nhập qua API Gateway
+    // 2️⃣ Đăng nhập qua AUTH để lấy token thật
     const authRes = await chai
-      .request("http://localhost:3003") // ✅ Gateway endpoint
-      .post("/auth/login")              // ✅ Route trong Gateway
+      .request("http://localhost:3000")
+      .post("/login")
       .send({
         username: process.env.LOGIN_TEST_USER,
         password: process.env.LOGIN_TEST_PASSWORD,
@@ -44,24 +45,27 @@ describe("Products (via API Gateway)", () => {
       };
 
       const res = await chai
-        .request("http://localhost:3003") // ✅ Gateway chứ không phải app.app
-        .post("/products")
+        .request(app.app)
+        .post("/") // ✅ sửa lại đường dẫn đúng route
         .set("Authorization", `Bearer ${authToken}`)
         .send(product);
 
       expect(res).to.have.status(201);
+      expect(res.body).to.have.property("_id");
       expect(res.body).to.have.property("name", product.name);
+      expect(res.body).to.have.property("description", product.description);
+      expect(res.body).to.have.property("price", product.price);
     });
 
     it("should return an error if name is missing", async () => {
       const product = {
-        description: "No name product",
-        price: 9.99,
+        description: "Description of Product 1",
+        price: 10.99,
       };
 
       const res = await chai
-        .request("http://localhost:8000")
-        .post("/products")
+        .request(app.app)
+        .post("/") // ✅ đúng route
         .set("Authorization", `Bearer ${authToken}`)
         .send(product);
 
