@@ -39,7 +39,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install --save-dev mocha chai chai-http && cd ..
           cd auth && npm ci && cd ..
           cd product && npm ci && cd ..
           cd order && npm ci && cd ..
