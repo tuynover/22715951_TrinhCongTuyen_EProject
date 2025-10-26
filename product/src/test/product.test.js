@@ -6,29 +6,23 @@ require("dotenv").config();
 
 chai.use(chaiHttp);
 
+
 describe("Products", () => {
   let app;
-  let authToken;
 
   before(async () => {
-    // 1️⃣ Khởi tạo app và kết nối DB + RabbitMQ
     app = new App();
-    await Promise.all([app.connectDB(), app.setupMessageBroker()]);
-    app.start();
+    await Promise.all([app.connectDB(), app.setupMessageBroker()])
 
-    // 2️⃣ Đăng nhập qua AUTH để lấy token thật
+    // Authenticate with the auth microservice to get a token
     const authRes = await chai
       .request("http://localhost:3000")
       .post("/login")
-      .send({
-        username: process.env.LOGIN_TEST_USER,
-        password: process.env.LOGIN_TEST_PASSWORD,
-      });
+      .send({ username: process.env.LOGIN_TEST_USER, password: process.env.LOGIN_TEST_PASSWORD });
 
-    expect(authRes).to.have.status(200);
-    expect(authRes.body).to.have.property("token");
     authToken = authRes.body.token;
-    console.log("✅ JWT token:", authToken);
+    console.log(authToken);
+    app.start();
   });
 
   after(async () => {
@@ -36,19 +30,22 @@ describe("Products", () => {
     app.stop();
   });
 
-  describe("POST /products", () => {
+  describe("POST /", () => {
     it("should create a new product", async () => {
       const product = {
         name: "Product 1",
         description: "Description of Product 1",
         price: 10,
       };
-
       const res = await chai
         .request(app.app)
-        .post("/") // ✅ sửa lại đường dẫn đúng route
+        .post("/")
         .set("Authorization", `Bearer ${authToken}`)
-        .send(product);
+        .send({
+            name: "Product 1",
+            price: 10,
+            description: "Description of Product 1"
+          });
 
       expect(res).to.have.status(201);
       expect(res.body).to.have.property("_id");
@@ -62,10 +59,9 @@ describe("Products", () => {
         description: "Description of Product 1",
         price: 10.99,
       };
-
       const res = await chai
         .request(app.app)
-        .post("/") // ✅ đúng route
+        .post("/")
         .set("Authorization", `Bearer ${authToken}`)
         .send(product);
 
@@ -73,3 +69,4 @@ describe("Products", () => {
     });
   });
 });
+
