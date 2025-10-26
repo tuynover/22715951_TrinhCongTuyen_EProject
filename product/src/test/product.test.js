@@ -36,7 +36,7 @@ describe("Products", () => {
       console.log("🧪 Running in CI/CD → generating mock JWT");
       authToken = jwt.sign(
         { username: "ci_user", role: "tester" },
-        process.env.JWT_SECRET || "idontknow",
+        process.env.JWT_SECRET || "your_jwt_secret_here",
         { expiresIn: "1h" }
       );
     }
@@ -49,25 +49,25 @@ describe("Products", () => {
     app.stop();
   });
 
-  describe("POST /", () => {
+  describe("POST /products", () => {
     it("should create a new product", async () => {
       const product = {
         name: "Product 1",
+        description: "Description of Product 1",
         price: 10,
-        description: "Description of Product 1"
       };
 
       const res = await chai
         .request(app.app)
-        .post("/")
+        .post("/api/products")
         .set("Authorization", `Bearer ${authToken}`)
         .send(product);
 
       expect(res).to.have.status(201);
       expect(res.body).to.have.property("_id");
       expect(res.body).to.have.property("name", product.name);
-      expect(res.body).to.have.property("price", product.price);
       expect(res.body).to.have.property("description", product.description);
+      expect(res.body).to.have.property("price", product.price);
     });
 
     it("should return an error if name is missing", async () => {
@@ -78,7 +78,7 @@ describe("Products", () => {
 
       const res = await chai
         .request(app.app)
-        .post("/")
+        .post("/api/products")
         .set("Authorization", `Bearer ${authToken}`)
         .send(product);
 
