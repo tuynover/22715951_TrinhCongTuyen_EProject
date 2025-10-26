@@ -1,37 +1,57 @@
-name: CI
-on: [push, pull_request]
+deploy:
+  name: Deploy on Localhost (Windows Runner)
+  needs: build-and-push
+  runs-on: self-hosted
+  env:
+    DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    IMAGE_TAG: latest
+  steps:
+    - name: Check Docker environment
+      shell: cmd
+      run: |
+        docker --version
+        docker compose version
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3.2.0
-    - name: Create .env file
-      run: |
-        echo "MONGODB_AUTH_URI=${{ secrets.MONGODB_PRODUCT_URI }}" >> auth/.env
-        echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> auth/.env
-        echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> product/.env
-        echo "MONGODB_PRODUCT_URI=${{ secrets.MONGODB_PRODUCT_URI }}" >> product/.env
-        echo "LOGIN_TEST_USER=${{ secrets.LOGIN_TEST_USER }}" >> product/.env
-        echo "LOGIN_TEST_PASSWORD=${{ secrets.LOGIN_TEST_PASSWORD }}" >> product/.env
+    - name: Docker login
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Install dependencies
+    - name: Clone latest code (for compose file)
+      shell: cmd
       run: |
-        cd auth
-        npm ci
-        cd ..
-        cd product
-        npm ci
-        cd ..
-        npm ci
-    - name: Run tests for auth
-      run : |
-        cd auth
-        npm test
-    - name: Run tests for product
+        if exist "EProject" rd /s /q "EProject"
+        git clone https://github.com/${{ github.repository }}.git EProject
+        cd EProject
+        git checkout main
+
+    - name: Stop and remove old containers
+      shell: cmd
       run: |
-        cd auth &&
-        npm start &
-        cd product
-        npm test
+        cd EProject
+        docker compose down --remove-orphans || exit /b 0
+
+    - name: Pull updated images from Docker Hub
+      shell: cmd
+      run: |
+        docker pull %DOCKERHUB_USERNAME%/api-gateway:%IMAGE_TAG%
+        docker pull %DOCKERHUB_USERNAME%/auth:%IMAGE_TAG%
+        docker pull %DOCKERHUB_USERNAME%/product:%IMAGE_TAG%
+        docker pull %DOCKERHUB_USERNAME%/order:%IMAGE_TAG%
+
+    - name: Create .env for docker-compose
+      shell: cmd
+      run: |
+        cd EProject
+        > .env (
+          echo DOCKERHUB_USERNAME=%DOCKERHUB_USERNAME%
+          echo IMAGE_TAG=%IMAGE_TAG%
+        )
+
+    - name: Deploy new containers
+      shell: cmd
+      run: |
+        cd EProject
+        docker compose up -d --remove-orphans --force-recreate
+        docker ps
