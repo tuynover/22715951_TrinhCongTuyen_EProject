@@ -52,6 +52,12 @@ jobs:
 
       - name: Run Auth tests
         run: |
+        - name: Install & Test (auth)
+  working-directory: ./auth
+  env: { NODE_ENV: test }
+  run: |
+          npm ci
+          npm install --save-dev mocha chai chai-http
           cd auth
           npm test
 
