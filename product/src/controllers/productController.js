@@ -112,25 +112,23 @@ class ProductController {
   }
 
   //
-  //
-   async getProductById(req,res,next){
+  async getProductById(req,res,next){
     try{
-      const token =req.headers.authorization;
-      if(!token){
-        return res.status(401).json({message:"không có token"});
-      }
       const product=await Product.findById(req.params.id);
       if(!product)
       {
-        return res.status(404).json({message:"không tìm thấy"});
+        return res.status(404).json("product not found");
       }
-      res.status(200).json(product);
+      return res.status(200).json(product);
     }
-  catch(error){
-      console.error(error);
-      res.status(500).json({message:"lỗi server"});
+    catch(error){
+      console.log(error);
+      return response.status(500).json("Internal server error")
     }
-   }
+  }
+  
+
+  //
 }
 
 
